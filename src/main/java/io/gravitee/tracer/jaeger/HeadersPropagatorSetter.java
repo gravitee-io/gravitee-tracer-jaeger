@@ -16,20 +16,24 @@
 package io.gravitee.tracer.jaeger;
 
 import io.opentelemetry.context.propagation.TextMapSetter;
-
 import java.util.function.BiConsumer;
 
 /**
  * @author David BRASSELY (david.brassely at graviteesource.com)
  * @author GraviteeSource Team
  */
-public class HeadersPropagatorSetter implements TextMapSetter<BiConsumer<String, String>> {
+public class HeadersPropagatorSetter
+  implements TextMapSetter<BiConsumer<String, String>> {
 
-    @Override
-    public void set(final BiConsumer<String, String> carrier, final String key, final String value) {
-        if (carrier == null) {
-            return;
-        }
-        carrier.accept(key, value);
+  @Override
+  public void set(
+    final BiConsumer<String, String> carrier,
+    final String key,
+    final String value
+  ) {
+    if (carrier == null) {
+      return;
     }
+    carrier.accept(key, value);
+  }
 }
