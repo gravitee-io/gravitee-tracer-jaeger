@@ -100,78 +100,13 @@ public class JaegerTracer
       configuration.getPort()
     );
 
-    if (configuration.isSslEnabled()) {
-      final HttpClientOptions options = new HttpClientOptions()
-        .setSsl(true)
-        .setVerifyHost(configuration.isHostnameVerifier())
-        .setTrustAll(configuration.isTrustAll());
+    final HttpClientOptions sslOptions = getHttpClientSSLOptionsFromConfiguration();
 
-      if (configuration.getKeystoreType() != null) {
-        if (
-          configuration.getKeystoreType().equalsIgnoreCase(KEYSTORE_FORMAT_JKS)
-        ) {
-          options.setKeyStoreOptions(
-            new JksOptions()
-              .setPath(configuration.getKeystorePath())
-              .setPassword(configuration.getKeystorePassword())
-          );
-        } else if (
-          configuration
-            .getKeystoreType()
-            .equalsIgnoreCase(KEYSTORE_FORMAT_PKCS12)
-        ) {
-          options.setPfxKeyCertOptions(
-            new PfxOptions()
-              .setPath(configuration.getKeystorePath())
-              .setPassword(configuration.getKeystorePassword())
-          );
-        } else if (
-          configuration.getKeystoreType().equalsIgnoreCase(KEYSTORE_FORMAT_PEM)
-        ) {
-          options.setPemKeyCertOptions(
-            new PemKeyCertOptions()
-              .setCertPaths(configuration.getKeystorePemCerts())
-              .setKeyPaths(configuration.getKeystorePemKeys())
-          );
-        }
-      }
-
-      if (configuration.getTruststoreType() != null) {
-        if (
-          configuration
-            .getTruststoreType()
-            .equalsIgnoreCase(KEYSTORE_FORMAT_JKS)
-        ) {
-          options.setTrustStoreOptions(
-            new JksOptions()
-              .setPath(configuration.getTruststorePath())
-              .setPassword(configuration.getTruststorePassword())
-          );
-        } else if (
-          configuration
-            .getTruststoreType()
-            .equalsIgnoreCase(KEYSTORE_FORMAT_PKCS12)
-        ) {
-          options.setPfxTrustOptions(
-            new PfxOptions()
-              .setPath(configuration.getTruststorePath())
-              .setPassword(configuration.getTruststorePassword())
-          );
-        } else if (
-          configuration
-            .getTruststoreType()
-            .equalsIgnoreCase(KEYSTORE_FORMAT_PEM)
-        ) {
-          options.setPemTrustOptions(
-            new PemTrustOptions().addCertPath(configuration.getTruststorePath())
-          );
-        }
-      }
-
+    if (sslOptions != null) {
       final SSLHelper helper = new SSLHelper(
-        options,
-        options.getKeyCertOptions(),
-        options.getTrustOptions()
+        sslOptions,
+        sslOptions.getKeyCertOptions(),
+        sslOptions.getTrustOptions()
       );
       helper.setApplicationProtocols(
         Collections.singletonList(HttpVersion.HTTP_2.alpnName())
@@ -220,6 +155,74 @@ public class JaegerTracer
 
     this.tracer = openTelemetry.getTracer("io.gravitee");
     this.propagators = openTelemetry.getPropagators();
+  }
+
+  private HttpClientOptions getHttpClientSSLOptionsFromConfiguration() {
+    if (!configuration.isSslEnabled()) {
+      return null;
+    }
+
+    final HttpClientOptions options = new HttpClientOptions()
+      .setSsl(true)
+      .setVerifyHost(configuration.isHostnameVerifier())
+      .setTrustAll(configuration.isTrustAll());
+
+    if (configuration.getKeystoreType() != null) {
+      if (
+        configuration.getKeystoreType().equalsIgnoreCase(KEYSTORE_FORMAT_JKS)
+      ) {
+        options.setKeyStoreOptions(
+          new JksOptions()
+            .setPath(configuration.getKeystorePath())
+            .setPassword(configuration.getKeystorePassword())
+        );
+      } else if (
+        configuration.getKeystoreType().equalsIgnoreCase(KEYSTORE_FORMAT_PKCS12)
+      ) {
+        options.setPfxKeyCertOptions(
+          new PfxOptions()
+            .setPath(configuration.getKeystorePath())
+            .setPassword(configuration.getKeystorePassword())
+        );
+      } else if (
+        configuration.getKeystoreType().equalsIgnoreCase(KEYSTORE_FORMAT_PEM)
+      ) {
+        options.setPemKeyCertOptions(
+          new PemKeyCertOptions()
+            .setCertPaths(configuration.getKeystorePemCerts())
+            .setKeyPaths(configuration.getKeystorePemKeys())
+        );
+      }
+    }
+
+    if (configuration.getTruststoreType() != null) {
+      if (
+        configuration.getTruststoreType().equalsIgnoreCase(KEYSTORE_FORMAT_JKS)
+      ) {
+        options.setTrustStoreOptions(
+          new JksOptions()
+            .setPath(configuration.getTruststorePath())
+            .setPassword(configuration.getTruststorePassword())
+        );
+      } else if (
+        configuration
+          .getTruststoreType()
+          .equalsIgnoreCase(KEYSTORE_FORMAT_PKCS12)
+      ) {
+        options.setPfxTrustOptions(
+          new PfxOptions()
+            .setPath(configuration.getTruststorePath())
+            .setPassword(configuration.getTruststorePassword())
+        );
+      } else if (
+        configuration.getTruststoreType().equalsIgnoreCase(KEYSTORE_FORMAT_PEM)
+      ) {
+        options.setPemTrustOptions(
+          new PemTrustOptions().addCertPath(configuration.getTruststorePath())
+        );
+      }
+    }
+    return options;
   }
 
   @Override
