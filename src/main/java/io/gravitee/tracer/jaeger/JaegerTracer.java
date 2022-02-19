@@ -63,317 +63,256 @@ import org.springframework.core.env.Environment;
  * @author David BRASSELY (david.brassely at graviteesource.com)
  * @author GraviteeSource Team
  */
-public class JaegerTracer
-  extends AbstractService<Tracer>
-  implements VertxTracer<Scope, Scope> {
+public class JaegerTracer extends AbstractService<Tracer> implements VertxTracer<Scope, Scope> {
 
-  static String ACTIVE_CONTEXT = "tracing.context";
+    static String ACTIVE_CONTEXT = "tracing.context";
 
-  private static final String KEYSTORE_FORMAT_JKS = "JKS";
-  private static final String KEYSTORE_FORMAT_PEM = "PEM";
-  private static final String KEYSTORE_FORMAT_PKCS12 = "PKCS12";
+    private static final String KEYSTORE_FORMAT_JKS = "JKS";
+    private static final String KEYSTORE_FORMAT_PEM = "PEM";
+    private static final String KEYSTORE_FORMAT_PKCS12 = "PKCS12";
 
-  private static final TextMapGetter<Iterable<Map.Entry<String, String>>> getter = new HeadersPropagatorGetter();
-  private static final TextMapSetter<BiConsumer<String, String>> setter = new HeadersPropagatorSetter();
+    private static final TextMapGetter<Iterable<Map.Entry<String, String>>> getter = new HeadersPropagatorGetter();
+    private static final TextMapSetter<BiConsumer<String, String>> setter = new HeadersPropagatorSetter();
 
-  private io.opentelemetry.api.trace.Tracer tracer;
+    private io.opentelemetry.api.trace.Tracer tracer;
 
-  private ContextPropagators propagators;
+    private ContextPropagators propagators;
 
-  @Autowired
-  private Environment environment;
+    @Autowired
+    private Environment environment;
 
-  @Autowired
-  private JaegerTracerConfiguration configuration;
+    @Autowired
+    private JaegerTracerConfiguration configuration;
 
-  @Autowired
-  private Node node;
+    @Autowired
+    private Node node;
 
-  @Autowired
-  private Vertx vertx;
+    @Autowired
+    private Vertx vertx;
 
-  @Override
-  protected void doStart() throws Exception {
-    // Create a channel towards Jaeger end point
-    final NettyChannelBuilder channelBuilder = NettyChannelBuilder.forAddress(
-      configuration.getHost(),
-      configuration.getPort()
-    );
+    @Override
+    protected void doStart() throws Exception {
+        // Create a channel towards Jaeger end point
+        final NettyChannelBuilder channelBuilder = NettyChannelBuilder.forAddress(configuration.getHost(), configuration.getPort());
 
-    final HttpClientOptions sslOptions = getHttpClientSSLOptionsFromConfiguration();
+        final HttpClientOptions sslOptions = getHttpClientSSLOptionsFromConfiguration();
 
-    if (sslOptions != null) {
-      final SSLHelper helper = new SSLHelper(
-        sslOptions,
-        sslOptions.getKeyCertOptions(),
-        sslOptions.getTrustOptions()
-      );
-      helper.setApplicationProtocols(
-        Collections.singletonList(HttpVersion.HTTP_2.alpnName())
-      );
-      final SslContext ctx = helper.getContext((VertxInternal) this.vertx);
+        if (sslOptions != null) {
+            final SSLHelper helper = new SSLHelper(sslOptions, sslOptions.getKeyCertOptions(), sslOptions.getTrustOptions());
+            helper.setApplicationProtocols(Collections.singletonList(HttpVersion.HTTP_2.alpnName()));
+            final SslContext ctx = helper.getContext((VertxInternal) this.vertx);
 
-      channelBuilder
-        .sslContext(
-          new DelegatingSslContext(ctx) {
-            protected void initEngine(SSLEngine engine) {
-              helper.configureEngine(engine, null);
+            channelBuilder
+                .sslContext(
+                    new DelegatingSslContext(ctx) {
+                        protected void initEngine(SSLEngine engine) {
+                            helper.configureEngine(engine, null);
+                        }
+                    }
+                )
+                .useTransportSecurity()
+                .build();
+        } else {
+            channelBuilder.usePlaintext();
+        }
+
+        final ManagedChannel channel = channelBuilder.build();
+        final JaegerGrpcSpanExporter exporter = JaegerGrpcSpanExporter
+            .builder()
+            .setChannel(channel)
+            .setTimeout(30, TimeUnit.SECONDS)
+            .build();
+
+        Resource serviceNameResource = Resource.create(Attributes.of(AttributeKey.stringKey("service.name"), node.application()));
+
+        // Set to process the spans by the Jaeger Exporter
+        SdkTracerProvider tracerProvider = SdkTracerProvider
+            .builder()
+            .addSpanProcessor(BatchSpanProcessor.builder(exporter).build())
+            .setResource(Resource.getDefault().merge(serviceNameResource))
+            .build();
+
+        OpenTelemetrySdk openTelemetry = OpenTelemetrySdk
+            .builder()
+            .setTracerProvider(tracerProvider)
+            .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
+            .build();
+
+        this.tracer = openTelemetry.getTracer("io.gravitee");
+        this.propagators = openTelemetry.getPropagators();
+    }
+
+    private HttpClientOptions getHttpClientSSLOptionsFromConfiguration() {
+        if (!configuration.isSslEnabled()) {
+            return null;
+        }
+
+        final HttpClientOptions options = new HttpClientOptions()
+            .setSsl(true)
+            .setVerifyHost(configuration.isHostnameVerifier())
+            .setTrustAll(configuration.isTrustAll());
+
+        if (configuration.getKeystoreType() != null) {
+            if (configuration.getKeystoreType().equalsIgnoreCase(KEYSTORE_FORMAT_JKS)) {
+                options.setKeyStoreOptions(
+                    new JksOptions().setPath(configuration.getKeystorePath()).setPassword(configuration.getKeystorePassword())
+                );
+            } else if (configuration.getKeystoreType().equalsIgnoreCase(KEYSTORE_FORMAT_PKCS12)) {
+                options.setPfxKeyCertOptions(
+                    new PfxOptions().setPath(configuration.getKeystorePath()).setPassword(configuration.getKeystorePassword())
+                );
+            } else if (configuration.getKeystoreType().equalsIgnoreCase(KEYSTORE_FORMAT_PEM)) {
+                options.setPemKeyCertOptions(
+                    new PemKeyCertOptions()
+                        .setCertPaths(configuration.getKeystorePemCerts())
+                        .setKeyPaths(configuration.getKeystorePemKeys())
+                );
             }
-          }
-        )
-        .useTransportSecurity()
-        .build();
-    } else {
-      channelBuilder.usePlaintext();
+        }
+
+        if (configuration.getTruststoreType() != null) {
+            if (configuration.getTruststoreType().equalsIgnoreCase(KEYSTORE_FORMAT_JKS)) {
+                options.setTrustStoreOptions(
+                    new JksOptions().setPath(configuration.getTruststorePath()).setPassword(configuration.getTruststorePassword())
+                );
+            } else if (configuration.getTruststoreType().equalsIgnoreCase(KEYSTORE_FORMAT_PKCS12)) {
+                options.setPfxTrustOptions(
+                    new PfxOptions().setPath(configuration.getTruststorePath()).setPassword(configuration.getTruststorePassword())
+                );
+            } else if (configuration.getTruststoreType().equalsIgnoreCase(KEYSTORE_FORMAT_PEM)) {
+                options.setPemTrustOptions(new PemTrustOptions().addCertPath(configuration.getTruststorePath()));
+            }
+        }
+        return options;
     }
 
-    final ManagedChannel channel = channelBuilder.build();
-    final JaegerGrpcSpanExporter exporter = JaegerGrpcSpanExporter
-      .builder()
-      .setChannel(channel)
-      .setTimeout(30, TimeUnit.SECONDS)
-      .build();
-
-    Resource serviceNameResource = Resource.create(
-      Attributes.of(AttributeKey.stringKey("service.name"), node.application())
-    );
-
-    // Set to process the spans by the Jaeger Exporter
-    SdkTracerProvider tracerProvider = SdkTracerProvider
-      .builder()
-      .addSpanProcessor(BatchSpanProcessor.builder(exporter).build())
-      .setResource(Resource.getDefault().merge(serviceNameResource))
-      .build();
-
-    OpenTelemetrySdk openTelemetry = OpenTelemetrySdk
-      .builder()
-      .setTracerProvider(tracerProvider)
-      .setPropagators(
-        ContextPropagators.create(W3CTraceContextPropagator.getInstance())
-      )
-      .build();
-
-    this.tracer = openTelemetry.getTracer("io.gravitee");
-    this.propagators = openTelemetry.getPropagators();
-  }
-
-  private HttpClientOptions getHttpClientSSLOptionsFromConfiguration() {
-    if (!configuration.isSslEnabled()) {
-      return null;
-    }
-
-    final HttpClientOptions options = new HttpClientOptions()
-      .setSsl(true)
-      .setVerifyHost(configuration.isHostnameVerifier())
-      .setTrustAll(configuration.isTrustAll());
-
-    if (configuration.getKeystoreType() != null) {
-      if (
-        configuration.getKeystoreType().equalsIgnoreCase(KEYSTORE_FORMAT_JKS)
-      ) {
-        options.setKeyStoreOptions(
-          new JksOptions()
-            .setPath(configuration.getKeystorePath())
-            .setPassword(configuration.getKeystorePassword())
-        );
-      } else if (
-        configuration.getKeystoreType().equalsIgnoreCase(KEYSTORE_FORMAT_PKCS12)
-      ) {
-        options.setPfxKeyCertOptions(
-          new PfxOptions()
-            .setPath(configuration.getKeystorePath())
-            .setPassword(configuration.getKeystorePassword())
-        );
-      } else if (
-        configuration.getKeystoreType().equalsIgnoreCase(KEYSTORE_FORMAT_PEM)
-      ) {
-        options.setPemKeyCertOptions(
-          new PemKeyCertOptions()
-            .setCertPaths(configuration.getKeystorePemCerts())
-            .setKeyPaths(configuration.getKeystorePemKeys())
-        );
-      }
-    }
-
-    if (configuration.getTruststoreType() != null) {
-      if (
-        configuration.getTruststoreType().equalsIgnoreCase(KEYSTORE_FORMAT_JKS)
-      ) {
-        options.setTrustStoreOptions(
-          new JksOptions()
-            .setPath(configuration.getTruststorePath())
-            .setPassword(configuration.getTruststorePassword())
-        );
-      } else if (
-        configuration
-          .getTruststoreType()
-          .equalsIgnoreCase(KEYSTORE_FORMAT_PKCS12)
-      ) {
-        options.setPfxTrustOptions(
-          new PfxOptions()
-            .setPath(configuration.getTruststorePath())
-            .setPassword(configuration.getTruststorePassword())
-        );
-      } else if (
-        configuration.getTruststoreType().equalsIgnoreCase(KEYSTORE_FORMAT_PEM)
-      ) {
-        options.setPemTrustOptions(
-          new PemTrustOptions().addCertPath(configuration.getTruststorePath())
-        );
-      }
-    }
-    return options;
-  }
-
-  @Override
-  public <R> Scope receiveRequest(
-    final Context context,
-    final SpanKind kind,
-    final TracingPolicy policy,
-    final R request,
-    final String operation,
-    final Iterable<Map.Entry<String, String>> headers,
-    final TagExtractor<R> tagExtractor
-  ) {
-    if (TracingPolicy.IGNORE.equals(policy)) {
-      return null;
-    }
-
-    io.opentelemetry.context.Context tracingContext = context.getLocal(
-      ACTIVE_CONTEXT
-    );
-    if (tracingContext == null) {
-      tracingContext = io.opentelemetry.context.Context.root();
-    }
-    tracingContext =
-      propagators
-        .getTextMapPropagator()
-        .extract(tracingContext, headers, getter);
-
-    // If no span, and policy is PROPAGATE, then don't create the span
-    if (
-      Span.fromContextOrNull(tracingContext) == null &&
-      TracingPolicy.PROPAGATE.equals(policy)
+    @Override
+    public <R> Scope receiveRequest(
+        final Context context,
+        final SpanKind kind,
+        final TracingPolicy policy,
+        final R request,
+        final String operation,
+        final Iterable<Map.Entry<String, String>> headers,
+        final TagExtractor<R> tagExtractor
     ) {
-      return null;
+        if (TracingPolicy.IGNORE.equals(policy)) {
+            return null;
+        }
+
+        io.opentelemetry.context.Context tracingContext = context.getLocal(ACTIVE_CONTEXT);
+        if (tracingContext == null) {
+            tracingContext = io.opentelemetry.context.Context.root();
+        }
+        tracingContext = propagators.getTextMapPropagator().extract(tracingContext, headers, getter);
+
+        // If no span, and policy is PROPAGATE, then don't create the span
+        if (Span.fromContextOrNull(tracingContext) == null && TracingPolicy.PROPAGATE.equals(policy)) {
+            return null;
+        }
+
+        final Span span = tracer
+            .spanBuilder(operation)
+            .setParent(tracingContext)
+            .setSpanKind(
+                SpanKind.RPC.equals(kind) ? io.opentelemetry.api.trace.SpanKind.SERVER : io.opentelemetry.api.trace.SpanKind.CONSUMER
+            )
+            .startSpan();
+
+        tagExtractor.extractTo(request, span::setAttribute);
+
+        return VertxContextStorageProvider.VertxContextStorage.INSTANCE.attach(context, tracingContext.with(span));
     }
 
-    final Span span = tracer
-      .spanBuilder(operation)
-      .setParent(tracingContext)
-      .setSpanKind(
-        SpanKind.RPC.equals(kind)
-          ? io.opentelemetry.api.trace.SpanKind.SERVER
-          : io.opentelemetry.api.trace.SpanKind.CONSUMER
-      )
-      .startSpan();
+    @Override
+    public <R> void sendResponse(
+        final Context context,
+        final R response,
+        final Scope scope,
+        final Throwable failure,
+        final TagExtractor<R> tagExtractor
+    ) {
+        if (scope == null) {
+            return;
+        }
 
-    tagExtractor.extractTo(request, span::setAttribute);
+        Span span = Span.fromContext(context.getLocal(ACTIVE_CONTEXT));
 
-    return VertxContextStorageProvider.VertxContextStorage.INSTANCE.attach(
-      context,
-      tracingContext.with(span)
-    );
-  }
+        if (failure != null) {
+            span.recordException(failure);
+        }
 
-  @Override
-  public <R> void sendResponse(
-    final Context context,
-    final R response,
-    final Scope scope,
-    final Throwable failure,
-    final TagExtractor<R> tagExtractor
-  ) {
-    if (scope == null) {
-      return;
+        if (response != null) {
+            tagExtractor.extractTo(response, span::setAttribute);
+        }
+
+        span.end();
+        scope.close();
     }
 
-    Span span = Span.fromContext(context.getLocal(ACTIVE_CONTEXT));
+    @Override
+    public <R> Scope sendRequest(
+        final Context context,
+        final SpanKind kind,
+        final TracingPolicy policy,
+        final R request,
+        final String operation,
+        final BiConsumer<String, String> headers,
+        final TagExtractor<R> tagExtractor
+    ) {
+        if (TracingPolicy.IGNORE.equals(policy) || request == null) {
+            return null;
+        }
 
-    if (failure != null) {
-      span.recordException(failure);
+        io.opentelemetry.context.Context tracingContext = context.getLocal(ACTIVE_CONTEXT);
+
+        if (tracingContext == null && !TracingPolicy.ALWAYS.equals(policy)) {
+            return null;
+        }
+
+        if (tracingContext == null) {
+            tracingContext = io.opentelemetry.context.Context.root();
+        }
+
+        final Span span = tracer
+            .spanBuilder(operation)
+            .setParent(tracingContext)
+            .setSpanKind(
+                SpanKind.RPC.equals(kind) ? io.opentelemetry.api.trace.SpanKind.CLIENT : io.opentelemetry.api.trace.SpanKind.PRODUCER
+            )
+            .startSpan();
+        tagExtractor.extractTo(request, span::setAttribute);
+
+        tracingContext = tracingContext.with(span);
+        propagators.getTextMapPropagator().inject(tracingContext, headers, setter);
+
+        return VertxContextStorageProvider.VertxContextStorage.INSTANCE.attach(context, tracingContext);
     }
 
-    if (response != null) {
-      tagExtractor.extractTo(response, span::setAttribute);
+    @Override
+    public <R> void receiveResponse(
+        final Context context,
+        final R response,
+        final Scope scope,
+        final Throwable failure,
+        final TagExtractor<R> tagExtractor
+    ) {
+        this.sendResponse(context, response, scope, failure, tagExtractor);
     }
 
-    span.end();
-    scope.close();
-  }
-
-  @Override
-  public <R> Scope sendRequest(
-    final Context context,
-    final SpanKind kind,
-    final TracingPolicy policy,
-    final R request,
-    final String operation,
-    final BiConsumer<String, String> headers,
-    final TagExtractor<R> tagExtractor
-  ) {
-    if (TracingPolicy.IGNORE.equals(policy) || request == null) {
-      return null;
+    @Override
+    protected void doStop() throws Exception {
+        this.close();
     }
 
-    io.opentelemetry.context.Context tracingContext = context.getLocal(
-      ACTIVE_CONTEXT
-    );
+    @Override
+    public io.gravitee.tracing.api.Span trace(String spanName) {
+        io.opentelemetry.context.Context parent = Vertx.currentContext().getLocal(ACTIVE_CONTEXT);
+        if (parent == null) {
+            parent = io.opentelemetry.context.Context.root();
+        }
 
-    if (tracingContext == null && !TracingPolicy.ALWAYS.equals(policy)) {
-      return null;
+        SpanBuilder builder = tracer.spanBuilder(spanName).setParent(parent);
+        return new JaegerSpan(builder.startSpan());
     }
-
-    if (tracingContext == null) {
-      tracingContext = io.opentelemetry.context.Context.root();
-    }
-
-    final Span span = tracer
-      .spanBuilder(operation)
-      .setParent(tracingContext)
-      .setSpanKind(
-        SpanKind.RPC.equals(kind)
-          ? io.opentelemetry.api.trace.SpanKind.CLIENT
-          : io.opentelemetry.api.trace.SpanKind.PRODUCER
-      )
-      .startSpan();
-    tagExtractor.extractTo(request, span::setAttribute);
-
-    tracingContext = tracingContext.with(span);
-    propagators.getTextMapPropagator().inject(tracingContext, headers, setter);
-
-    return VertxContextStorageProvider.VertxContextStorage.INSTANCE.attach(
-      context,
-      tracingContext
-    );
-  }
-
-  @Override
-  public <R> void receiveResponse(
-    final Context context,
-    final R response,
-    final Scope scope,
-    final Throwable failure,
-    final TagExtractor<R> tagExtractor
-  ) {
-    this.sendResponse(context, response, scope, failure, tagExtractor);
-  }
-
-  @Override
-  protected void doStop() throws Exception {
-    this.close();
-  }
-
-  @Override
-  public io.gravitee.tracing.api.Span trace(String spanName) {
-    io.opentelemetry.context.Context parent = Vertx
-      .currentContext()
-      .getLocal(ACTIVE_CONTEXT);
-    if (parent == null) {
-      parent = io.opentelemetry.context.Context.root();
-    }
-
-    SpanBuilder builder = tracer.spanBuilder(spanName).setParent(parent);
-    return new JaegerSpan(builder.startSpan());
-  }
 }
