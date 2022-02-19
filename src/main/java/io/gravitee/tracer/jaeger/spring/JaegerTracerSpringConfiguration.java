@@ -26,8 +26,8 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class JaegerTracerSpringConfiguration {
 
-  @Bean
-  public JaegerTracerConfiguration jaegerTracerConfiguration() {
-    return new JaegerTracerConfiguration();
-  }
+    @Bean
+    public JaegerTracerConfiguration jaegerTracerConfiguration() {
+        return new JaegerTracerConfiguration();
+    }
 }

@@ -24,31 +24,27 @@ import java.util.Set;
  * @author David BRASSELY (david.brassely at graviteesource.com)
  * @author GraviteeSource Team
  */
-public class HeadersPropagatorGetter
-  implements TextMapGetter<Iterable<Entry<String, String>>> {
+public class HeadersPropagatorGetter implements TextMapGetter<Iterable<Entry<String, String>>> {
 
-  @Override
-  public Iterable<String> keys(final Iterable<Entry<String, String>> carrier) {
-    Set<String> keys = new HashSet<>();
-    for (Entry<String, String> entry : carrier) {
-      keys.add(entry.getKey());
+    @Override
+    public Iterable<String> keys(final Iterable<Entry<String, String>> carrier) {
+        Set<String> keys = new HashSet<>();
+        for (Entry<String, String> entry : carrier) {
+            keys.add(entry.getKey());
+        }
+        return keys;
     }
-    return keys;
-  }
 
-  @Override
-  public String get(
-    final Iterable<Entry<String, String>> carrier,
-    final String key
-  ) {
-    if (carrier == null) {
-      return null;
+    @Override
+    public String get(final Iterable<Entry<String, String>> carrier, final String key) {
+        if (carrier == null) {
+            return null;
+        }
+        for (Entry<String, String> entry : carrier) {
+            if (entry.getKey().equalsIgnoreCase(key)) {
+                return entry.getValue();
+            }
+        }
+        return null;
     }
-    for (Entry<String, String> entry : carrier) {
-      if (entry.getKey().equalsIgnoreCase(key)) {
-        return entry.getValue();
-      }
-    }
-    return null;
-  }
 }

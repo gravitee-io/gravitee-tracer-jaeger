@@ -24,45 +24,45 @@ import io.opentelemetry.api.trace.StatusCode;
  */
 public class JaegerSpan implements Span {
 
-  private final io.opentelemetry.api.trace.Span span;
+    private final io.opentelemetry.api.trace.Span span;
 
-  public JaegerSpan(final io.opentelemetry.api.trace.Span span) {
-    this.span = span;
-  }
+    public JaegerSpan(final io.opentelemetry.api.trace.Span span) {
+        this.span = span;
+    }
 
-  @Override
-  public Span withAttribute(String name, String value) {
-    span.setAttribute(name, value);
-    return this;
-  }
+    @Override
+    public Span withAttribute(String name, String value) {
+        span.setAttribute(name, value);
+        return this;
+    }
 
-  @Override
-  public Span withAttribute(String name, boolean value) {
-    span.setAttribute(name, value);
-    return this;
-  }
+    @Override
+    public Span withAttribute(String name, boolean value) {
+        span.setAttribute(name, value);
+        return this;
+    }
 
-  @Override
-  public Span withAttribute(String name, long value) {
-    span.setAttribute(name, value);
-    return this;
-  }
+    @Override
+    public Span withAttribute(String name, long value) {
+        span.setAttribute(name, value);
+        return this;
+    }
 
-  @Override
-  public Span reportError(Throwable throwable) {
-    span.recordException(throwable);
-    span.setStatus(StatusCode.ERROR, throwable.getMessage());
-    return this;
-  }
+    @Override
+    public Span reportError(Throwable throwable) {
+        span.recordException(throwable);
+        span.setStatus(StatusCode.ERROR, throwable.getMessage());
+        return this;
+    }
 
-  @Override
-  public Span reportError(String message) {
-    span.setStatus(StatusCode.ERROR, message);
-    return this;
-  }
+    @Override
+    public Span reportError(String message) {
+        span.setStatus(StatusCode.ERROR, message);
+        return this;
+    }
 
-  @Override
-  public void end() {
-    span.end();
-  }
+    @Override
+    public void end() {
+        span.end();
+    }
 }
