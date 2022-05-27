@@ -57,15 +57,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import javax.net.ssl.SSLEngine;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.env.Environment;
 
 /**
  * @author David BRASSELY (david.brassely at graviteesource.com)
  * @author GraviteeSource Team
  */
-public class JaegerTracer extends AbstractService<Tracer> implements VertxTracer<Scope, Scope> {
-
-    static String ACTIVE_CONTEXT = "tracing.context";
+public class JaegerTracer extends AbstractService<Tracer> implements VertxTracer<Span, Span> {
 
     private static final String KEYSTORE_FORMAT_JKS = "JKS";
     private static final String KEYSTORE_FORMAT_PEM = "PEM";
@@ -75,11 +72,7 @@ public class JaegerTracer extends AbstractService<Tracer> implements VertxTracer
     private static final TextMapSetter<BiConsumer<String, String>> setter = new HeadersPropagatorSetter();
 
     private io.opentelemetry.api.trace.Tracer tracer;
-
     private ContextPropagators propagators;
-
-    @Autowired
-    private Environment environment;
 
     @Autowired
     private JaegerTracerConfiguration configuration;
@@ -91,7 +84,7 @@ public class JaegerTracer extends AbstractService<Tracer> implements VertxTracer
     private Vertx vertx;
 
     @Override
-    protected void doStart() throws Exception {
+    protected void doStart() {
         // Create a channel towards Jaeger end point
         final NettyChannelBuilder channelBuilder = NettyChannelBuilder.forAddress(configuration.getHost(), configuration.getPort());
 
@@ -187,7 +180,7 @@ public class JaegerTracer extends AbstractService<Tracer> implements VertxTracer
     }
 
     @Override
-    public <R> Scope receiveRequest(
+    public <R> Span receiveRequest(
         final Context context,
         final SpanKind kind,
         final TracingPolicy policy,
@@ -200,44 +193,46 @@ public class JaegerTracer extends AbstractService<Tracer> implements VertxTracer
             return null;
         }
 
-        io.opentelemetry.context.Context tracingContext = context.getLocal(ACTIVE_CONTEXT);
-        if (tracingContext == null) {
-            tracingContext = io.opentelemetry.context.Context.root();
-        }
-        tracingContext = propagators.getTextMapPropagator().extract(tracingContext, headers, getter);
+        io.opentelemetry.context.Context tracingContext = propagators
+            .getTextMapPropagator()
+            .extract(io.opentelemetry.context.Context.root(), headers, getter);
 
         // If no span, and policy is PROPAGATE, then don't create the span
         if (Span.fromContextOrNull(tracingContext) == null && TracingPolicy.PROPAGATE.equals(policy)) {
             return null;
         }
 
-        final Span span = tracer
-            .spanBuilder(operation)
-            .setParent(tracingContext)
-            .setSpanKind(
-                SpanKind.RPC.equals(kind) ? io.opentelemetry.api.trace.SpanKind.SERVER : io.opentelemetry.api.trace.SpanKind.CONSUMER
-            )
-            .startSpan();
+        final Span span = reportTagsAndStart(
+            tracer
+                .spanBuilder(operation)
+                .setParent(tracingContext)
+                .setSpanKind(
+                    SpanKind.RPC.equals(kind) ? io.opentelemetry.api.trace.SpanKind.CLIENT : io.opentelemetry.api.trace.SpanKind.PRODUCER
+                ),
+            request,
+            tagExtractor
+        );
 
-        tagExtractor.extractTo(request, span::setAttribute);
+        VertxContextStorageProvider.VertxContextStorage.INSTANCE.attach(context, tracingContext.with(span));
 
-        return VertxContextStorageProvider.VertxContextStorage.INSTANCE.attach(context, tracingContext.with(span));
+        return span;
     }
 
     @Override
     public <R> void sendResponse(
         final Context context,
         final R response,
-        final Scope scope,
+        final Span span,
         final Throwable failure,
         final TagExtractor<R> tagExtractor
     ) {
-        if (scope == null) {
-            return;
+        if (span != null) {
+            VertxContextStorageProvider.VertxContextStorage.INSTANCE.clear(context);
+            end(span, response, tagExtractor, failure);
         }
+    }
 
-        Span span = Span.fromContext(context.getLocal(ACTIVE_CONTEXT));
-
+    private <R> void end(Span span, R response, TagExtractor<R> tagExtractor, Throwable failure) {
         if (failure != null) {
             span.recordException(failure);
         }
@@ -245,13 +240,11 @@ public class JaegerTracer extends AbstractService<Tracer> implements VertxTracer
         if (response != null) {
             tagExtractor.extractTo(response, span::setAttribute);
         }
-
         span.end();
-        scope.close();
     }
 
     @Override
-    public <R> Scope sendRequest(
+    public <R> Span sendRequest(
         final Context context,
         final SpanKind kind,
         final TracingPolicy policy,
@@ -264,8 +257,7 @@ public class JaegerTracer extends AbstractService<Tracer> implements VertxTracer
             return null;
         }
 
-        io.opentelemetry.context.Context tracingContext = context.getLocal(ACTIVE_CONTEXT);
-
+        io.opentelemetry.context.Context tracingContext = VertxContextStorageProvider.VertxContextStorage.INSTANCE.current(context);
         if (tracingContext == null && !TracingPolicy.ALWAYS.equals(policy)) {
             return null;
         }
@@ -274,45 +266,57 @@ public class JaegerTracer extends AbstractService<Tracer> implements VertxTracer
             tracingContext = io.opentelemetry.context.Context.root();
         }
 
-        final Span span = tracer
-            .spanBuilder(operation)
-            .setParent(tracingContext)
-            .setSpanKind(
-                SpanKind.RPC.equals(kind) ? io.opentelemetry.api.trace.SpanKind.CLIENT : io.opentelemetry.api.trace.SpanKind.PRODUCER
-            )
-            .startSpan();
-        tagExtractor.extractTo(request, span::setAttribute);
-
+        final Span span = reportTagsAndStart(
+            tracer
+                .spanBuilder(operation)
+                .setParent(tracingContext)
+                .setSpanKind(
+                    SpanKind.RPC.equals(kind) ? io.opentelemetry.api.trace.SpanKind.CLIENT : io.opentelemetry.api.trace.SpanKind.PRODUCER
+                ),
+            request,
+            tagExtractor
+        );
         tracingContext = tracingContext.with(span);
         propagators.getTextMapPropagator().inject(tracingContext, headers, setter);
 
-        return VertxContextStorageProvider.VertxContextStorage.INSTANCE.attach(context, tracingContext);
+        return span;
     }
 
     @Override
     public <R> void receiveResponse(
         final Context context,
         final R response,
-        final Scope scope,
+        final Span span,
         final Throwable failure,
         final TagExtractor<R> tagExtractor
     ) {
-        this.sendResponse(context, response, scope, failure, tagExtractor);
+        if (span != null) {
+            end(span, response, tagExtractor, failure);
+        }
+    }
+
+    // tags need to be set before start, otherwise any sampler registered won't have access to it
+    private <T> Span reportTagsAndStart(SpanBuilder span, T obj, TagExtractor<T> tagExtractor) {
+        int len = tagExtractor.len(obj);
+        for (int idx = 0; idx < len; idx++) {
+            span.setAttribute(tagExtractor.name(obj, idx), tagExtractor.value(obj, idx));
+        }
+        return span.startSpan();
     }
 
     @Override
-    protected void doStop() throws Exception {
+    protected void doStop() {
         this.close();
     }
 
     @Override
     public io.gravitee.tracing.api.Span trace(String spanName) {
-        io.opentelemetry.context.Context parent = Vertx.currentContext().getLocal(ACTIVE_CONTEXT);
-        if (parent == null) {
-            parent = io.opentelemetry.context.Context.root();
+        io.opentelemetry.context.Context tracingContext = VertxContextStorageProvider.VertxContextStorage.INSTANCE.current();
+        if (tracingContext == null) {
+            tracingContext = io.opentelemetry.context.Context.root();
         }
-
-        SpanBuilder builder = tracer.spanBuilder(spanName).setParent(parent);
-        return new JaegerSpan(builder.startSpan());
+        Span span = tracer.spanBuilder(spanName).setParent(tracingContext).startSpan();
+        Scope scope = VertxContextStorageProvider.VertxContextStorage.INSTANCE.attach(tracingContext.with(span));
+        return new JaegerSpan(span, scope);
     }
 }

@@ -17,6 +17,7 @@ package io.gravitee.tracer.jaeger;
 
 import io.gravitee.tracing.api.Span;
 import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.context.Scope;
 
 /**
  * @author David BRASSELY (david.brassely at graviteesource.com)
@@ -25,9 +26,11 @@ import io.opentelemetry.api.trace.StatusCode;
 public class JaegerSpan implements Span {
 
     private final io.opentelemetry.api.trace.Span span;
+    private final Scope scope;
 
-    public JaegerSpan(final io.opentelemetry.api.trace.Span span) {
+    public JaegerSpan(final io.opentelemetry.api.trace.Span span, Scope scope) {
         this.span = span;
+        this.scope = scope;
     }
 
     @Override
@@ -64,5 +67,6 @@ public class JaegerSpan implements Span {
     @Override
     public void end() {
         span.end();
+        scope.close();
     }
 }

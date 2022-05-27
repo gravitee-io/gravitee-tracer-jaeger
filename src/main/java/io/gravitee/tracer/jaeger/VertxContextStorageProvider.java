@@ -56,10 +56,25 @@ public class VertxContextStorageProvider implements ContextStorageProvider {
         @Override
         public Context current() {
             io.vertx.core.Context vertxCtx = Vertx.currentContext();
+            return current(vertxCtx);
+        }
+
+        public Context current(io.vertx.core.Context vertxCtx) {
             if (vertxCtx == null) {
                 return null;
             }
             return vertxCtx.getLocal(ACTIVE_CONTEXT);
+        }
+
+        public void clear() {
+            io.vertx.core.Context vertxCtx = Vertx.currentContext();
+            clear(vertxCtx);
+        }
+
+        public void clear(io.vertx.core.Context vertxCtx) {
+            if (vertxCtx != null) {
+                vertxCtx.removeLocal(ACTIVE_CONTEXT);
+            }
         }
     }
 }
