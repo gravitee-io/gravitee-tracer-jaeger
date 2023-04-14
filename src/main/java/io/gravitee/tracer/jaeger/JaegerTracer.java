@@ -22,7 +22,6 @@ import io.gravitee.node.tracing.vertx.VertxTracer;
 import io.gravitee.tracer.jaeger.configuration.JaegerTracerConfiguration;
 import io.grpc.ManagedChannel;
 import io.grpc.netty.NettyChannelBuilder;
-import io.netty.handler.ssl.DelegatingSslContext;
 import io.netty.handler.ssl.SslContext;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
@@ -51,11 +50,11 @@ import io.vertx.core.net.impl.SSLHelper;
 import io.vertx.core.spi.tracing.SpanKind;
 import io.vertx.core.spi.tracing.TagExtractor;
 import io.vertx.core.tracing.TracingPolicy;
+import io.vertx.grpc.VertxChannelBuilder;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
-import javax.net.ssl.SSLEngine;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
@@ -63,10 +62,6 @@ import org.springframework.beans.factory.annotation.Autowired;
  * @author GraviteeSource Team
  */
 public class JaegerTracer extends AbstractService<Tracer> implements VertxTracer<Span, Span> {
-
-    private static final String KEYSTORE_FORMAT_JKS = "JKS";
-    private static final String KEYSTORE_FORMAT_PEM = "PEM";
-    private static final String KEYSTORE_FORMAT_PKCS12 = "PKCS12";
 
     private static final TextMapGetter<Iterable<Map.Entry<String, String>>> getter = new HeadersPropagatorGetter();
     private static final TextMapSetter<BiConsumer<String, String>> setter = new HeadersPropagatorSetter();
@@ -86,30 +81,7 @@ public class JaegerTracer extends AbstractService<Tracer> implements VertxTracer
     @Override
     protected void doStart() {
         // Create a channel towards Jaeger end point
-        final NettyChannelBuilder channelBuilder = NettyChannelBuilder.forAddress(configuration.getHost(), configuration.getPort());
-
-        final HttpClientOptions sslOptions = getHttpClientSSLOptionsFromConfiguration();
-
-        if (sslOptions != null) {
-            final SSLHelper helper = new SSLHelper(sslOptions, sslOptions.getKeyCertOptions(), sslOptions.getTrustOptions());
-            helper.setApplicationProtocols(Collections.singletonList(HttpVersion.HTTP_2.alpnName()));
-            final SslContext ctx = helper.getContext((VertxInternal) this.vertx, null, true);
-
-            channelBuilder
-                .sslContext(
-                    new DelegatingSslContext(ctx) {
-                        protected void initEngine(SSLEngine engine) {
-                            helper.configureEngine(engine, null);
-                        }
-                    }
-                )
-                .useTransportSecurity()
-                .build();
-        } else {
-            channelBuilder.usePlaintext();
-        }
-
-        final ManagedChannel channel = channelBuilder.build();
+        final ManagedChannel channel = JaegerGrpcChannelBuilder.from(vertx, configuration).build();
         final JaegerGrpcSpanExporter exporter = JaegerGrpcSpanExporter
             .builder()
             .setChannel(channel)
@@ -133,50 +105,6 @@ public class JaegerTracer extends AbstractService<Tracer> implements VertxTracer
 
         this.tracer = openTelemetry.getTracer("io.gravitee");
         this.propagators = openTelemetry.getPropagators();
-    }
-
-    private HttpClientOptions getHttpClientSSLOptionsFromConfiguration() {
-        if (!configuration.isSslEnabled()) {
-            return null;
-        }
-
-        final HttpClientOptions options = new HttpClientOptions()
-            .setSsl(true)
-            .setVerifyHost(configuration.isHostnameVerifier())
-            .setTrustAll(configuration.isTrustAll());
-
-        if (configuration.getKeystoreType() != null) {
-            if (configuration.getKeystoreType().equalsIgnoreCase(KEYSTORE_FORMAT_JKS)) {
-                options.setKeyStoreOptions(
-                    new JksOptions().setPath(configuration.getKeystorePath()).setPassword(configuration.getKeystorePassword())
-                );
-            } else if (configuration.getKeystoreType().equalsIgnoreCase(KEYSTORE_FORMAT_PKCS12)) {
-                options.setPfxKeyCertOptions(
-                    new PfxOptions().setPath(configuration.getKeystorePath()).setPassword(configuration.getKeystorePassword())
-                );
-            } else if (configuration.getKeystoreType().equalsIgnoreCase(KEYSTORE_FORMAT_PEM)) {
-                options.setPemKeyCertOptions(
-                    new PemKeyCertOptions()
-                        .setCertPaths(configuration.getKeystorePemCerts())
-                        .setKeyPaths(configuration.getKeystorePemKeys())
-                );
-            }
-        }
-
-        if (configuration.getTruststoreType() != null) {
-            if (configuration.getTruststoreType().equalsIgnoreCase(KEYSTORE_FORMAT_JKS)) {
-                options.setTrustStoreOptions(
-                    new JksOptions().setPath(configuration.getTruststorePath()).setPassword(configuration.getTruststorePassword())
-                );
-            } else if (configuration.getTruststoreType().equalsIgnoreCase(KEYSTORE_FORMAT_PKCS12)) {
-                options.setPfxTrustOptions(
-                    new PfxOptions().setPath(configuration.getTruststorePath()).setPassword(configuration.getTruststorePassword())
-                );
-            } else if (configuration.getTruststoreType().equalsIgnoreCase(KEYSTORE_FORMAT_PEM)) {
-                options.setPemTrustOptions(new PemTrustOptions().addCertPath(configuration.getTruststorePath()));
-            }
-        }
-        return options;
     }
 
     @Override

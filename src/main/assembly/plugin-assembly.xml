@@ -36,7 +36,6 @@
 			<outputDirectory>lib</outputDirectory>
 			<useProjectArtifact>false</useProjectArtifact>
 			<excludes>
-				<exclude>io.netty:*</exclude>
 				<exclude>com.google.guava:*</exclude>
 			</excludes>
 		</dependencySet>
