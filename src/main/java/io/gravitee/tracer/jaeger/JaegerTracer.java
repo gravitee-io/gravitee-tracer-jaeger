@@ -22,7 +22,6 @@ import io.gravitee.node.tracing.vertx.VertxTracer;
 import io.gravitee.tracer.jaeger.configuration.JaegerTracerConfiguration;
 import io.grpc.ManagedChannel;
 import io.grpc.netty.NettyChannelBuilder;
-import io.netty.handler.ssl.DelegatingSslContext;
 import io.netty.handler.ssl.SslContext;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
@@ -55,7 +54,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
-import javax.net.ssl.SSLEngine;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
@@ -87,24 +85,12 @@ public class JaegerTracer extends AbstractService<Tracer> implements VertxTracer
     protected void doStart() {
         // Create a channel towards Jaeger end point
         final NettyChannelBuilder channelBuilder = NettyChannelBuilder.forAddress(configuration.getHost(), configuration.getPort());
-
         final HttpClientOptions sslOptions = getHttpClientSSLOptionsFromConfiguration();
 
         if (sslOptions != null) {
-            final SSLHelper helper = new SSLHelper(sslOptions, sslOptions.getKeyCertOptions(), sslOptions.getTrustOptions());
-            helper.setApplicationProtocols(Collections.singletonList(HttpVersion.HTTP_2.alpnName()));
-            final SslContext ctx = helper.getContext((VertxInternal) this.vertx);
-
-            channelBuilder
-                .sslContext(
-                    new DelegatingSslContext(ctx) {
-                        protected void initEngine(SSLEngine engine) {
-                            helper.configureEngine(engine, null);
-                        }
-                    }
-                )
-                .useTransportSecurity()
-                .build();
+            final SSLHelper helper = new SSLHelper(sslOptions, Collections.singletonList(HttpVersion.HTTP_2.alpnName()));
+            final SslContext ctx = helper.sslContext((VertxInternal) this.vertx, null, sslOptions.isUseAlpn());
+            channelBuilder.sslContext(ctx).useTransportSecurity().build();
         } else {
             channelBuilder.usePlaintext();
         }
