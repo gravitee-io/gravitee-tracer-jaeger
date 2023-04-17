@@ -93,7 +93,7 @@ public class JaegerTracer extends AbstractService<Tracer> implements VertxTracer
         if (sslOptions != null) {
             final SSLHelper helper = new SSLHelper(sslOptions, sslOptions.getKeyCertOptions(), sslOptions.getTrustOptions());
             helper.setApplicationProtocols(Collections.singletonList(HttpVersion.HTTP_2.alpnName()));
-            final SslContext ctx = helper.getContext((VertxInternal) this.vertx);
+            final SslContext ctx = helper.getContext((VertxInternal) this.vertx, null, true);
 
             channelBuilder
                 .sslContext(
