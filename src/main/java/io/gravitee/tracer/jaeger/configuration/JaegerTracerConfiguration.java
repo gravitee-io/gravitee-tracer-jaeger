@@ -17,6 +17,11 @@ package io.gravitee.tracer.jaeger.configuration;
 
 import java.util.ArrayList;
 import java.util.List;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
@@ -25,6 +30,11 @@ import org.springframework.core.env.Environment;
  * @author David BRASSELY (david.brassely at graviteesource.com)
  * @author GraviteeSource Team
  */
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+@Getter
+@Setter
 public class JaegerTracerConfiguration {
 
     @Value("${services.tracing.jaeger.ssl.enabled:false}")
@@ -94,39 +104,11 @@ public class JaegerTracerConfiguration {
     @Value("${services.tracing.jaeger.port:14250}")
     private int port;
 
-    @Autowired
     private Environment environment;
 
-    public boolean isSslEnabled() {
-        return sslEnabled;
-    }
-
-    public void setSslEnabled(boolean sslEnabled) {
-        this.sslEnabled = sslEnabled;
-    }
-
-    public String getKeystoreType() {
-        return keystoreType;
-    }
-
-    public void setKeystoreType(String keystoreType) {
-        this.keystoreType = keystoreType;
-    }
-
-    public String getKeystorePath() {
-        return keystorePath;
-    }
-
-    public void setKeystorePath(String keystorePath) {
-        this.keystorePath = keystorePath;
-    }
-
-    public String getKeystorePassword() {
-        return keystorePassword;
-    }
-
-    public void setKeystorePassword(String keystorePassword) {
-        this.keystorePassword = keystorePassword;
+    @Autowired
+    public JaegerTracerConfiguration(Environment environment) {
+        this.environment = environment;
     }
 
     public List<String> getKeystorePemCerts() {
@@ -149,75 +131,11 @@ public class JaegerTracerConfiguration {
         return values;
     }
 
-    public void setKeystorePemCerts(List<String> keystorePemCerts) {
-        this.keystorePemCerts = keystorePemCerts;
-    }
-
     public List<String> getKeystorePemKeys() {
         if (keystorePemKeys == null) {
             keystorePemKeys = initializeKeystorePemCerts("services.tracing.jaeger.ssl.keystore.keys[%s]");
         }
 
         return keystorePemKeys;
-    }
-
-    public void setKeystorePemKeys(List<String> keystorePemKeys) {
-        this.keystorePemKeys = keystorePemKeys;
-    }
-
-    public boolean isTrustAll() {
-        return trustAll;
-    }
-
-    public void setTrustAll(boolean trustAll) {
-        this.trustAll = trustAll;
-    }
-
-    public boolean isHostnameVerifier() {
-        return hostnameVerifier;
-    }
-
-    public void setHostnameVerifier(boolean hostnameVerifier) {
-        this.hostnameVerifier = hostnameVerifier;
-    }
-
-    public String getTruststoreType() {
-        return truststoreType;
-    }
-
-    public void setTruststoreType(String truststoreType) {
-        this.truststoreType = truststoreType;
-    }
-
-    public String getTruststorePath() {
-        return truststorePath;
-    }
-
-    public void setTruststorePath(String truststorePath) {
-        this.truststorePath = truststorePath;
-    }
-
-    public String getTruststorePassword() {
-        return truststorePassword;
-    }
-
-    public void setTruststorePassword(String truststorePassword) {
-        this.truststorePassword = truststorePassword;
-    }
-
-    public String getHost() {
-        return host;
-    }
-
-    public void setHost(String host) {
-        this.host = host;
-    }
-
-    public int getPort() {
-        return port;
-    }
-
-    public void setPort(int port) {
-        this.port = port;
     }
 }

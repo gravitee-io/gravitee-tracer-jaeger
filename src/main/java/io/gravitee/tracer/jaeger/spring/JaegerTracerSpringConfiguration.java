@@ -15,9 +15,13 @@
  */
 package io.gravitee.tracer.jaeger.spring;
 
+import io.gravitee.node.api.Node;
+import io.gravitee.tracer.jaeger.JaegerTracer;
 import io.gravitee.tracer.jaeger.configuration.JaegerTracerConfiguration;
+import io.vertx.core.Vertx;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
 /**
  * @author David BRASSELY (david.brassely at graviteesource.com)
@@ -27,7 +31,7 @@ import org.springframework.context.annotation.Configuration;
 public class JaegerTracerSpringConfiguration {
 
     @Bean
-    public JaegerTracerConfiguration jaegerTracerConfiguration() {
-        return new JaegerTracerConfiguration();
+    public JaegerTracerConfiguration jaegerTracerConfiguration(Environment environment) {
+        return new JaegerTracerConfiguration(environment);
     }
 }
