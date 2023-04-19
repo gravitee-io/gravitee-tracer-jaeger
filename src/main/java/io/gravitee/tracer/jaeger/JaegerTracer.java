@@ -21,8 +21,6 @@ import io.gravitee.node.api.tracing.Tracer;
 import io.gravitee.node.tracing.vertx.VertxTracer;
 import io.gravitee.tracer.jaeger.configuration.JaegerTracerConfiguration;
 import io.grpc.ManagedChannel;
-import io.grpc.netty.NettyChannelBuilder;
-import io.netty.handler.ssl.SslContext;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.Span;
@@ -39,19 +37,9 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.vertx.core.Context;
 import io.vertx.core.Vertx;
-import io.vertx.core.http.HttpClientOptions;
-import io.vertx.core.http.HttpVersion;
-import io.vertx.core.impl.VertxInternal;
-import io.vertx.core.net.JksOptions;
-import io.vertx.core.net.PemKeyCertOptions;
-import io.vertx.core.net.PemTrustOptions;
-import io.vertx.core.net.PfxOptions;
-import io.vertx.core.net.impl.SSLHelper;
 import io.vertx.core.spi.tracing.SpanKind;
 import io.vertx.core.spi.tracing.TagExtractor;
 import io.vertx.core.tracing.TracingPolicy;
-import io.vertx.grpc.VertxChannelBuilder;
-import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
@@ -69,14 +57,18 @@ public class JaegerTracer extends AbstractService<Tracer> implements VertxTracer
     private io.opentelemetry.api.trace.Tracer tracer;
     private ContextPropagators propagators;
 
-    @Autowired
-    private JaegerTracerConfiguration configuration;
+    private final JaegerTracerConfiguration configuration;
+
+    private final Node node;
+
+    private final Vertx vertx;
 
     @Autowired
-    private Node node;
-
-    @Autowired
-    private Vertx vertx;
+    public JaegerTracer(JaegerTracerConfiguration configuration, Node node, Vertx vertx) {
+        this.configuration = configuration;
+        this.node = node;
+        this.vertx = vertx;
+    }
 
     @Override
     protected void doStart() {
