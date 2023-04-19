@@ -1,3 +1,20 @@
+# [2.0.0](https://github.com/gravitee-io/gravitee-tracer-jaeger/compare/1.2.1...2.0.0) (2023-04-19)
+
+
+### Bug Fixes
+
+* **deps:** upgrade jaeger dependency and bump gravitee bom ([61560b5](https://github.com/gravitee-io/gravitee-tracer-jaeger/commit/61560b5ef51214c4bfdf971ac9fc60ff84a945e6))
+
+
+### BREAKING CHANGES
+
+* **deps:** the gravitee bom has been upgraded to v4.0.0 and gravitee-node-api to 3.0.3,
+                 that comes with an upgrade of vertx from v4.1.x to 4.3.8
+
+Co-authored-by: Julien Giovaresco <dev@giovaresco.fr>
+
+https://gravitee.atlassian.net/browse/APIM-1473
+
 ## [1.2.1](https://github.com/gravitee-io/gravitee-tracer-jaeger/compare/1.2.0...1.2.1) (2023-04-17)
 
 
