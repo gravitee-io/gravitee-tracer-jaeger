@@ -36,7 +36,7 @@
     <properties>
         <gravitee-bom.version>4.0.3</gravitee-bom.version>
         <gravitee-node-api.version>3.0.9</gravitee-node-api.version>
-        <opentelemetry-exporter-jaeger.version>1.26.0</opentelemetry-exporter-jaeger.version>
+        <opentelemetry-exporter-jaeger.version>1.27.0</opentelemetry-exporter-jaeger.version>
         <awaitility.version>4.2.0</awaitility.version>
         <testcontainers.version>1.18.3</testcontainers.version>
 
