@@ -38,7 +38,7 @@
         <gravitee-node-api.version>3.0.9</gravitee-node-api.version>
         <opentelemetry-exporter-jaeger.version>1.28.0</opentelemetry-exporter-jaeger.version>
         <awaitility.version>4.2.0</awaitility.version>
-        <testcontainers.version>1.19.0</testcontainers.version>
+        <testcontainers.version>1.19.1</testcontainers.version>
 
         <maven-plugin-assembly.version>3.6.0</maven-plugin-assembly.version>
         <maven-plugin-javadoc.version>3.5.0</maven-plugin-javadoc.version>
