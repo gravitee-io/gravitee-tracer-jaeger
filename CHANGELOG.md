@@ -1,3 +1,15 @@
+# [3.0.0](https://github.com/gravitee-io/gravitee-tracer-jaeger/compare/2.0.0...3.0.0) (2023-10-17)
+
+
+### chore
+
+* bump all dependencies version ([1c66fac](https://github.com/gravitee-io/gravitee-tracer-jaeger/commit/1c66fac178fad9404116a06c31787fbfad396c54))
+
+
+### BREAKING CHANGES
+
+* required JDK 17 and APIM 4+
+
 # [2.0.0](https://github.com/gravitee-io/gravitee-tracer-jaeger/compare/1.2.1...2.0.0) (2023-04-19)
 
 
