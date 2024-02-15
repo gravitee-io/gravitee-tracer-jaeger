@@ -1,3 +1,10 @@
+## [3.0.1](https://github.com/gravitee-io/gravitee-tracer-jaeger/compare/3.0.0...3.0.1) (2024-02-15)
+
+
+### Bug Fixes
+
+* upgrade transitive dependency okio ([65dcaf1](https://github.com/gravitee-io/gravitee-tracer-jaeger/commit/65dcaf1c2509ecc1b89fede2942f8a549cfacd42))
+
 # [3.0.0](https://github.com/gravitee-io/gravitee-tracer-jaeger/compare/2.0.0...3.0.0) (2023-10-17)
 
 
