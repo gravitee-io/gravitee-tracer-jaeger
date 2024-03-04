@@ -34,7 +34,7 @@
     <name>Gravitee.io - Tracing - Jaeger</name>
 
     <properties>
-        <gravitee-bom.version>6.0.32</gravitee-bom.version>
+        <gravitee-bom.version>6.0.33</gravitee-bom.version>
         <gravitee-node-api.version>4.8.2</gravitee-node-api.version>
         <opentelemetry-bom.version>1.28.0</opentelemetry-bom.version>
         <okio.version>3.4.0</okio.version>
