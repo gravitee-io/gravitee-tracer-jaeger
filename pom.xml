@@ -41,7 +41,7 @@
         <awaitility.version>4.2.1</awaitility.version>
         <testcontainers.version>1.19.7</testcontainers.version>
 
-        <maven-plugin-assembly.version>3.7.0</maven-plugin-assembly.version>
+        <maven-plugin-assembly.version>3.7.1</maven-plugin-assembly.version>
         <maven-plugin-javadoc.version>3.5.0</maven-plugin-javadoc.version>
 
         <!-- Property used by the publication job in CI-->
