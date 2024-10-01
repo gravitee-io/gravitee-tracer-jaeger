@@ -39,7 +39,7 @@
         <opentelemetry-bom.version>1.28.0</opentelemetry-bom.version>
         <okio.version>3.4.0</okio.version>
         <awaitility.version>4.2.1</awaitility.version>
-        <testcontainers.version>1.19.7</testcontainers.version>
+        <testcontainers.version>1.20.2</testcontainers.version>
 
         <maven-plugin-assembly.version>3.7.1</maven-plugin-assembly.version>
         <maven-plugin-javadoc.version>3.5.0</maven-plugin-javadoc.version>
