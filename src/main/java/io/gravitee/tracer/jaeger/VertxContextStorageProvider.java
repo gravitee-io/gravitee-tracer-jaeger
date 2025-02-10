@@ -39,18 +39,22 @@ public class VertxContextStorageProvider implements ContextStorageProvider {
         }
 
         public Scope attach(io.vertx.core.Context vertxCtx, Context toAttach) {
-            Context current = vertxCtx.getLocal(ACTIVE_CONTEXT);
-
+            Context current = vertxCtx == null ? null : vertxCtx.getLocal(ACTIVE_CONTEXT);
             if (current == toAttach) {
                 return Scope.noop();
             }
+            if (vertxCtx != null) {
+                vertxCtx.putLocal(ACTIVE_CONTEXT, toAttach);
+            }
 
-            vertxCtx.putLocal(ACTIVE_CONTEXT, toAttach);
-
-            if (current == null) {
+            if (current == null && vertxCtx != null) {
                 return () -> vertxCtx.removeLocal(ACTIVE_CONTEXT);
             }
-            return () -> vertxCtx.putLocal(ACTIVE_CONTEXT, current);
+            return () -> {
+                if (vertxCtx != null) {
+                    vertxCtx.putLocal(ACTIVE_CONTEXT, current);
+                }
+            };
         }
 
         @Override
