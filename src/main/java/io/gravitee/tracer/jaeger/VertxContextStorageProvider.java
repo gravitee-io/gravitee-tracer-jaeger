@@ -40,7 +40,6 @@ public class VertxContextStorageProvider implements ContextStorageProvider {
 
         public Scope attach(io.vertx.core.Context vertxCtx, Context toAttach) {
             Context current = vertxCtx == null ? null : vertxCtx.getLocal(ACTIVE_CONTEXT);
-
             if (current == toAttach) {
                 return Scope.noop();
             }
