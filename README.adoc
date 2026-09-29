@@ -19,6 +19,8 @@ You can build the tracer plugin from the source or you can download it from http
 Then, put the ZIP file in your gateway plugins folder. (https://docs.gravitee.io/apim/3.x/apim_installguide_gateway_configuration.html#configure_the_plugins_repository[More information])
 
 == Compatibility with APIM
+=== This plugin is no longer supported
+https://github.com/gravitee-io/gravitee-node/tree/master/gravitee-node-opentelemetry[Follow this link to get details about Open Telemetry support in Gravitee]
 
 |===
 | Plugin version | APIM version
